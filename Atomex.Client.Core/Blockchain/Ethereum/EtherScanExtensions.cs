@@ -42,8 +42,10 @@ namespace Atomex.Blockchain.Ethereum
             const int prefixOffset = 2;
             var initiatorHex = contractEvent.HexData.Substring(prefixOffset, TopicSizeInHex);
             var refundTimeHex = contractEvent.HexData.Substring(prefixOffset + TopicSizeInHex, TopicSizeInHex);
-            var valueHex = contractEvent.HexData.Substring(prefixOffset + 2*TopicSizeInHex, TopicSizeInHex);
-            var redeemFeeHex = contractEvent.HexData.Substring(prefixOffset + 3*TopicSizeInHex, TopicSizeInHex);
+            var countdownHex = contractEvent.HexData.Substring(prefixOffset + 2 * TopicSizeInHex, TopicSizeInHex);
+            var valueHex = contractEvent.HexData.Substring(prefixOffset + 3 * TopicSizeInHex, TopicSizeInHex);
+            var redeemFeeHex = contractEvent.HexData.Substring(prefixOffset + 4 * TopicSizeInHex, TopicSizeInHex);
+            var active = contractEvent.HexData.Substring(prefixOffset + 5 * TopicSizeInHex, TopicSizeInHex);
 
             return new InitiatedEventDTO
             {
@@ -53,8 +55,10 @@ namespace Atomex.Blockchain.Ethereum
                 Initiator =
                     $"0x{initiatorHex.Substring(initiatorHex.Length - AddressLengthInHex)}",
                 RefundTimestamp = new HexBigInteger(refundTimeHex).Value,
+                Countdown = new HexBigInteger(countdownHex).Value,
                 Value = new HexBigInteger(valueHex).Value,
-                RedeemFee = new HexBigInteger(redeemFeeHex).Value
+                RedeemFee = new HexBigInteger(redeemFeeHex).Value,
+                Active = new HexBigInteger(active).Value != 0
             };
         }
 

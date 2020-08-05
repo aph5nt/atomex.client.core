@@ -143,7 +143,7 @@ namespace Atomex.Swaps.Ethereum
             EthereumSwapInitiatedHelper.StartSwapInitiatedControlAsync(
                     swap: swap,
                     currency: Eth,
-                    refundTimeStamp: refundTimeUtcInSec,
+                    lockTimeInSec: lockTimeInSeconds,
                     interval: ConfirmationCheckInterval,
                     initiatedHandler: initiatedHandler,
                     canceledHandler: SwapCanceledHandler,
@@ -226,8 +226,8 @@ namespace Atomex.Swaps.Ethereum
 
             if (nonceResult.HasError)
             {
-                Log.Error("Nonce getting error with code {@code} and description {@description}", 
-                    nonceResult.Error.Code, 
+                Log.Error("Nonce getting error with code {@code} and description {@description}",
+                    nonceResult.Error.Code,
                     nonceResult.Error.Description);
 
                 return;
@@ -518,7 +518,7 @@ namespace Atomex.Swaps.Ethereum
             CancellationToken cancellationToken = default)
         {
             Log.Debug(
-                "Initiator payment transaction received. Now counter party can broadcast payment tx for swap {@swapId}", 
+                "Initiator payment transaction received. Now counter party can broadcast payment tx for swap {@swapId}",
                 swap.Id);
 
             swap.StateFlags |= SwapStateFlags.HasPartyPayment;
@@ -793,11 +793,13 @@ namespace Atomex.Swaps.Ethereum
                         HashedSecret = swap.SecretHash,
                         Participant = swap.PartyAddress,
                         RefundTimestamp = refundTimeStampUtcInSec,
+                        Countdown = lockTimeInSeconds,
+                        RedeemFee = Atomex.Ethereum.EthToWei(rewardForRedeemInEth),
+                        Active = true,
                         AmountToSend = Atomex.Ethereum.EthToWei(amountInEth),
                         FromAddress = walletAddress.Address,
                         GasPrice = Atomex.Ethereum.GweiToWei(eth.GasPriceInGwei),
                         Nonce = nonceResult.Value,
-                        RedeemFee = Atomex.Ethereum.EthToWei(rewardForRedeemInEth)
                     };
 
                     var initiateGasLimit = rewardForRedeemInEth == 0

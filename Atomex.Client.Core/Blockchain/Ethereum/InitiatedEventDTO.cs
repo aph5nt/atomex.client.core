@@ -18,10 +18,16 @@ namespace Atomex.Blockchain.Ethereum
         [Parameter("uint256", "_refundTimestamp", 4, false)]
         public BigInteger RefundTimestamp { get; set; }
 
-        [Parameter("uint256", "_value", 5, false)]
+        [Parameter("uint256", "_countdown", 5, false)]
+        public BigInteger Countdown { get; set; }
+
+        [Parameter("uint256", "_value", 6, false)]
         public BigInteger Value { get; set; }
 
-        [Parameter("uint256", "_payoff", 6, false)]
+        [Parameter("uint256", "_payoff", 7, false)]
         public BigInteger RedeemFee { get; set; }
+
+        [Parameter("bool", "_active", 8, false)]
+        public bool Active { get; set; }
     }
 }

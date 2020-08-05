@@ -14,7 +14,7 @@ namespace Atomex.Swaps.Ethereum.Helpers
         public static async Task<Result<bool>> IsInitiatedAsync(
             Swap swap,
             Currency currency,
-            long refundTimeStamp,
+            long lockTimeInSec,
             CancellationToken cancellationToken = default)
         {
             try
@@ -27,10 +27,12 @@ namespace Atomex.Swaps.Ethereum.Helpers
                     .OrderSideForBuyCurrency(swap.PurchasedCurrency)
                     .Opposite();
 
+                var refundTimeStamp = new DateTimeOffset(swap.TimeStamp.ToUniversalTime().AddSeconds(lockTimeInSec)).ToUnixTimeSeconds();
                 var requiredAmountInEth = AmountHelper.QtyToAmount(sideOpposite, swap.Qty, swap.Price, ethereum.DigitsMultiplier);
                 var requiredAmountInWei = Atomex.Ethereum.EthToWei(requiredAmountInEth);
-                var requiredRewardForRedeemInWei = Atomex.Ethereum.EthToWei(swap.RewardForRedeem);
-
+                var requiredRewardForRedeemInWei = swap.IsAcceptor
+                    ? Atomex.Ethereum.EthToWei(swap.RewardForRedeem)
+                    : 0;
 
                 var api = new EtherScanApi(ethereum);
 
@@ -72,19 +74,40 @@ namespace Atomex.Swaps.Ethereum.Helpers
                             description: $"Invalid refund time in initiated event. Expected value is {refundTimeStamp}, actual is {(long)initiatedEvent.RefundTimestamp}");
                     }
 
-                    if (swap.IsAcceptor)
+                    if (initiatedEvent.Countdown != lockTimeInSec)  //todo: use it
                     {
-                        if (initiatedEvent.RedeemFee != requiredRewardForRedeemInWei)
-                        {
-                            Log.Debug(
-                                "Invalid redeem fee in initiated event. Expected value is {@expected}, actual is {@actual}",
-                                requiredRewardForRedeemInWei,
-                                (long)initiatedEvent.RedeemFee);
+                        Log.Debug(
+                            "Invalid countdown in initiated event. Expected value is {@expected}, actual is {@actual}",
+                            lockTimeInSec,
+                            (long)initiatedEvent.Countdown);
 
-                            return new Error(
-                                code: Errors.InvalidRewardForRedeem,
-                                description: $"Invalid redeem fee in initiated event. Expected value is {requiredRewardForRedeemInWei}, actual is {(long)initiatedEvent.RedeemFee}");
-                        }
+                        return new Error(
+                            code: Errors.InvalidRewardForRedeem,
+                            description: $"Invalid countdown in initiated event. Expected value is {lockTimeInSec}, actual is {(long)initiatedEvent.Countdown}");
+                    }
+
+                    if (initiatedEvent.RedeemFee != requiredRewardForRedeemInWei)
+                    {
+                        Log.Debug(
+                            "Invalid redeem fee in initiated event. Expected value is {@expected}, actual is {@actual}",
+                            requiredRewardForRedeemInWei,
+                            (long)initiatedEvent.RedeemFee);
+
+                        return new Error(
+                            code: Errors.InvalidRewardForRedeem,
+                            description: $"Invalid redeem fee in initiated event. Expected value is {requiredRewardForRedeemInWei}, actual is {(long)initiatedEvent.RedeemFee}");
+                    }
+
+                    if (!initiatedEvent.Active)
+                    {
+                        Log.Debug(
+                            "Invalid active value in initiated event. Expected value is {@expected}, actual is {@actual}",
+                            true,
+                            initiatedEvent.Active);
+
+                        return new Error(
+                            code: Errors.InvalidRewardForRedeem,
+                            description: $"Invalid active value in initiated event. Expected value is {true}, actual is {initiatedEvent.Active}");
                     }
 
                     return true;
@@ -94,7 +117,7 @@ namespace Atomex.Swaps.Ethereum.Helpers
                     "Eth value is not enough. Expected value is {@expected}. Actual value is {@actual}",
                     (decimal)(requiredAmountInWei - requiredRewardForRedeemInWei),
                     (decimal)initiatedEvent.Value);
-                
+
                 var addEventsResult = await api
                     .GetContractEventsAsync(
                         address: ethereum.SwapContractAddress,
@@ -126,7 +149,7 @@ namespace Atomex.Swaps.Ethereum.Helpers
                         requiredAmountInWei - requiredRewardForRedeemInWei,
                         (long)@event.Value);
                 }
-                
+
             }
             catch (Exception e)
             {
@@ -141,7 +164,7 @@ namespace Atomex.Swaps.Ethereum.Helpers
         public static Task StartSwapInitiatedControlAsync(
             Swap swap,
             Currency currency,
-            long refundTimeStamp,
+            long lockTimeInSec,
             TimeSpan interval,
             Action<Swap, CancellationToken> initiatedHandler = null,
             Action<Swap, CancellationToken> canceledHandler = null,
@@ -151,7 +174,8 @@ namespace Atomex.Swaps.Ethereum.Helpers
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    if (swap.IsCanceled) {
+                    if (swap.IsCanceled)
+                    {
                         canceledHandler?.Invoke(swap, cancellationToken);
                         break;
                     }
@@ -159,7 +183,7 @@ namespace Atomex.Swaps.Ethereum.Helpers
                     var isInitiatedResult = await IsInitiatedAsync(
                             swap: swap,
                             currency: currency,
-                            refundTimeStamp: refundTimeStamp,
+                            lockTimeInSec: lockTimeInSec,
                             cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
 
